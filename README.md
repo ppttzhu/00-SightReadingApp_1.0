@@ -30,86 +30,159 @@ npm install
 npx cap sync
 ```
 
-### Run on iOS
+## Run on iOS Simulator
+
+### First time setup
 
 ```bash
-npx cap open ios
-# Build and run from Xcode on a physical device or simulator
+# 1. Install dependencies and sync
+npm install
+npx cap sync ios
+
+# 2. Find available simulators
+xcrun simctl list devices available | grep iPhone
+
+# 3. Boot a simulator (replace <UDID> with the UUID from above)
+xcrun simctl boot <UDID>
+
+# 4. Build
+cd ios/App
+xcodebuild -workspace App.xcworkspace -scheme App -destination 'id=<UDID>' build 2>&1 | tail -5
+cd ../..
+
+# 5. Install and launch
+xcrun simctl install <UDID> ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphonesimulator/App.app
+xcrun simctl launch <UDID> com.sightreading.app
 ```
 
-### Run on Android
+### Re-launch (no code changes)
 
 ```bash
+xcrun simctl launch <UDID> com.sightreading.app
+```
+
+### Rebuild after code changes
+
+```bash
+# Sync changes
+npx cap sync ios
+
+# Build
+cd ios/App
+xcodebuild -workspace App.xcworkspace -scheme App -destination 'id=<UDID>' build 2>&1 | tail -5
+cd ../..
+
+# Kill old app, install new build, launch
+xcrun simctl terminate <UDID> com.sightreading.app
+xcrun simctl install <UDID> ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphonesimulator/App.app
+xcrun simctl launch <UDID> com.sightreading.app
+```
+
+### If Simulator is not booted
+
+```bash
+xcrun simctl boot <UDID>
+```
+
+> **Note:** MIDI hardware (USB/Bluetooth keyboards) does NOT work in the iOS Simulator.
+> Use a physical device to test MIDI connectivity.
+
+## Run on Physical iPhone
+
+### Option A: Via Xcode GUI
+
+```bash
+# Fix Xcode registration (one-time, if `open -a Xcode` doesn't work)
+/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister -f /Applications/Xcode.app
+
+# Open the workspace in Xcode
+open -a Xcode ios/App/App.xcworkspace
+
+# If the above fails, try:
+/Applications/Xcode.app/Contents/MacOS/Xcode ios/App/App.xcworkspace &
+```
+
+Then in Xcode:
+1. Connect iPhone via USB cable
+2. Select your iPhone in the device dropdown (top toolbar)
+3. Go to **Signing & Capabilities** → enable "Automatically manage signing" → select your Team
+4. Press **Cmd+R** to build and run
+5. On first install: iPhone → **Settings → General → VPN & Device Management** → Trust the developer certificate
+
+### Option B: Command line (after Xcode signing is configured)
+
+```bash
+# Build for device
+cd ios/App
+xcodebuild -workspace App.xcworkspace -scheme App -destination 'generic/platform=iOS' build 2>&1 | tail -5
+cd ../..
+
+# Install (requires ios-deploy: brew install ios-deploy)
+ios-deploy --bundle ~/Library/Developer/Xcode/DerivedData/App-*/Build/Products/Debug-iphoneos/App.app
+```
+
+### Requirements for Physical Device
+
+- Apple ID signed in to Xcode (free account works, but app expires after 7 days)
+- iPhone on iOS 15+
+- USB cable (data cable, not charge-only)
+- Tap "Trust This Computer" on the iPhone when first connecting
+
+## Run on Android
+
+```bash
+npx cap sync android
 npx cap open android
 # Build and run from Android Studio on a physical device or emulator
 ```
 
+Or via command line:
+```bash
+cd android
+./gradlew assembleDebug
+adb install app/build/outputs/apk/debug/app-debug.apk
+adb shell am start -n com.sightreading.app/.MainActivity
+```
+
 ## Testing
 
-### Unit and Property-Based Tests
-
-Unit tests and property-based tests (fast-check) run in Node.js via Vitest:
+### Unit Tests
 
 ```bash
-# Run all unit and property tests
+# Run all tests
 npx vitest run
 
-# Run in watch mode during development
+# Watch mode
 npx vitest
 ```
 
 ### Integration Tests
 
-Integration tests are located in `tests/integration/` and document scenarios that **require physical hardware or platform emulators** to verify. They cannot be run in standard CI environments.
-
-#### What Integration Tests Cover
+Located in `tests/integration/`. These are `it.todo()` stubs documenting scenarios that require physical MIDI hardware:
 
 | File | Scenarios |
 |------|-----------|
-| `midi-device.test.ts` | USB MIDI connection (iOS/Android), Bluetooth MIDI (iOS), NoteOn/NoteOff forwarding, disconnect detection, hot-plug, multi-device management |
-| `webview-lifecycle.test.ts` | WebView loading, localStorage persistence, offline indicator, auto-reload on reconnect, splash screen dismissal, 10-second timeout error |
+| `midi-device.test.ts` | USB/Bluetooth MIDI connection, NoteOn/NoteOff forwarding, hot-plug, multi-device |
+| `webview-lifecycle.test.ts` | WebView loading, localStorage persistence, offline handling, splash screen |
 
-#### Prerequisites for Integration Tests
+To verify these manually:
+1. Deploy app to a physical device
+2. Connect a MIDI keyboard (USB via Camera Connection Kit on iOS, USB OTG on Android)
+3. Follow the steps documented in each test stub
 
-1. **Physical device or emulator** — USB MIDI will not work in iOS Simulator; use a real device.
-2. **MIDI keyboard** — USB MIDI keyboard with Camera Connection Kit (iOS) or OTG adapter (Android), or a Bluetooth MIDI device (iOS only).
-3. **Network control** — Ability to toggle airplane mode or use a network proxy for offline/timeout scenarios.
-4. **App deployed to device** — The Capacitor app must be built and running on the target device.
+## Key Configuration
 
-#### How to Run Integration Tests
-
-These tests are written as `it.todo()` stubs documenting manual verification steps. To execute them:
-
-1. **Build and deploy the app:**
-   ```bash
-   npx cap sync
-   npx cap open ios    # or: npx cap open android
-   ```
-   Then build and deploy to a physical device from Xcode or Android Studio.
-
-2. **For automated execution** (optional), use a device testing framework:
-   - **iOS:** XCUITest or Appium with WebDriverAgent
-   - **Android:** Espresso or Appium with UiAutomator2
-
-3. **Follow the steps in each test stub** to manually verify behavior on the device.
-
-4. **Network tests** (offline indicator, auto-reload, timeout):
-   - Use airplane mode or a network proxy to simulate connectivity loss
-   - For timeout tests, block the domain while keeping the device "online"
-
-5. **MIDI device tests:**
-   - Connect a USB MIDI keyboard via Camera Connection Kit (iOS) or USB OTG (Android)
-   - For Bluetooth tests: pair a BLE MIDI device in iOS Settings first
-   - Press physical keys to verify event forwarding
-
-#### Converting Stubs to Automated Tests
-
-When setting up device automation (Appium, Detox, etc.), replace `it.todo()` with actual test implementations following the documented steps in each stub. The test structure and scenarios are already defined — they just need the device automation bindings.
+| Item | Value |
+|------|-------|
+| Bundle ID | `com.sightreading.app` |
+| Server URL | `https://ruihan.me` |
+| iOS Target | 15.0+ |
+| Android minSdk | 24 (Android 7.0+) |
 
 ## Project Structure
 
 ```
-├── capacitor.config.ts          # Capacitor configuration (app ID, server URL)
+├── capacitor.config.ts          # Capacitor config (app ID, server URL)
 ├── package.json                 # Dependencies and scripts
 ├── tsconfig.json                # TypeScript configuration
 ├── vitest.config.ts             # Test runner configuration
@@ -130,19 +203,9 @@ When setting up device automation (Appium, Detox, etc.), replace `it.todo()` wit
 │       ├── DeviceLifecycle.ts   # Auto-connect/fallback logic
 │       └── types.ts             # Shared types
 ├── ios/                         # iOS native project
-│   └── App/Plugins/MidiPlugin/  # CoreMIDI plugin implementation
+│   └── App/Plugins/MidiPlugin/  # CoreMIDI plugin (Swift)
 ├── android/                     # Android native project
-│   └── app/src/main/java/.../midi/  # android.media.midi plugin
+│   └── app/src/main/java/.../midi/  # android.media.midi plugin (Kotlin)
 └── tests/
     └── integration/             # Integration test stubs (require devices)
-        ├── midi-device.test.ts
-        └── webview-lifecycle.test.ts
 ```
-
-## Configuration
-
-Key configuration in `capacitor.config.ts`:
-- **App ID:** `com.sightreading.app`
-- **Server URL:** `https://ruihan.me`
-- **iOS target:** 15.0+
-- **Android minSdk:** 24 (Android 7.0+)
