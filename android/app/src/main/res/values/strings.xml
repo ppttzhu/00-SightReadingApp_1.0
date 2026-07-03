@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Sight Reading</string>
+    <string name="title_activity_main">Sight Reading</string>
+    <string name="package_name">com.sightreading.app</string>
+    <string name="custom_url_scheme">com.sightreading.app</string>
+</resources>

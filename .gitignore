@@ -1,0 +1,32 @@
+# Dependencies
+node_modules/
+
+# Build output (keep .gitkeep)
+dist/*
+!dist/.gitkeep
+
+# TypeScript
+*.tsbuildinfo
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Capacitor native build artifacts
+ios/App/Pods/
+ios/App/build/
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+
+# Test coverage
+coverage/
+
+# Environment files
+.env
+.env.local
